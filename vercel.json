@@ -1,11 +1,9 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
   "framework": "nextjs",
   "env": {
     "NEXTAUTH_SECRET": "taskmaster-secret-key-2024",
-    "NEXTAUTH_URL": "https://taskmaster-pro.vercel.app"
+    "NEXTAUTH_URL": "https://taskmaster-pro-git-main-leeitcom-1523s-projects.vercel.app"
   }
 }
