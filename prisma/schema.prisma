@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  username      String    @unique
+  email         String    @unique
+  phone         String?   @unique
+  password      String
+  nickname      String?
+  avatar        String?
+  status        Int       @default(1)
+  departmentId  String?
+  lastLoginAt   DateTime?
+  lastLoginIp   String?
+  loginAttempts Int       @default(0)
+  lockedUntil   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  department    Department? @relation(fields: [departmentId], references: [id])
+  roles         UserRole[]
+  createdTasks  Task[]      @relation("TaskCreator")
+  assignedTasks Task[]      @relation("TaskAssignee")
+  supervisedTasks Task[]   @relation("TaskSupervisor")
+  taskMembers   TaskMember[]
+  feedbacks     Feedback[]
+  superviseRecords Supervise[]
+  refreshTokens RefreshToken[]
+  logs          Log[]
+
+  @@index([departmentId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  parentId    String?
+  leaderId    String?
+  sortOrder   Int      @default(0)
+  description String?
+  status      Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children    Department[] @relation("DepartmentHierarchy")
+  users       User[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  description String?
+  type        Int      @default(1)
+  status      Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  userRoles   UserRole[]
+}
+
+model RolePermission {
+  id              String   @id @default(uuid())
+  roleId          String
+  permissionCode  String
+  createdAt       DateTime @default(now())
+
+  role            Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionCode])
+  @@index([permissionCode])
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model Task {
+  id              String    @id @default(uuid())
+  taskNo          String    @unique
+  title           String
+  description     String?
+  priority        Int       @default(2)
+  status          String    @default("draft")
+  category        String?
+  tags            String?
+  attachments     String?
+  parentId        String?
+  rootId          String?
+  level           Int       @default(0)
+
+  creatorId       String
+  assigneeId      String?
+  supervisorId    String?
+  
+  startDate       DateTime?
+  endDate         DateTime?
+  actualEndDate   DateTime?
+  estimatedHours  Float?
+  actualHours     Float?
+  
+  feedbackCycle   String    @default("none")
+  feedbackCycleDays Int?
+  lastFeedbackAt  DateTime?
+  nextFeedbackAt  DateTime?
+  
+  progress        Int       @default(0)
+  completionSummary String?
+  
+  isSupervised    Boolean   @default(false)
+  superviseLevel  Int?
+  
+  rejectReason    String?
+  cancelReason    String?
+  
+  version         Int       @default(1)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  creator         User      @relation("TaskCreator", fields: [creatorId], references: [id])
+  assignee        User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  supervisor      User?     @relation("TaskSupervisor", fields: [supervisorId], references: [id])
+  parent          Task?     @relation("TaskParent", fields: [parentId], references: [id])
+  children        Task[]    @relation("TaskParent")
+  members         TaskMember[]
+  feedbacks       Feedback[]
+  superviseRecord Supervise?
+
+  @@index([status])
+  @@index([priority])
+  @@index([creatorId])
+  @@index([assigneeId])
+  @@index([supervisorId])
+  @@index([category])
+  @@index([parentId])
+  @@index([endDate])
+  @@index([isSupervised])
+  @@index([deletedAt])
+  @@index([createdAt])
+}
+
+model TaskMember {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@index([userId])
+}
+
+model Feedback {
+  id          String    @id @default(uuid())
+  taskId      String
+  userId      String
+  content     String
+  progress    Int       @default(0)
+  attachments String?
+  parentId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id])
+  parent      Feedback? @relation("FeedbackParent", fields: [parentId], references: [id])
+  replies     Feedback[] @relation("FeedbackParent")
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([parentId])
+  @@index([createdAt])
+}
+
+model Supervise {
+  id            String    @id @default(uuid())
+  taskId        String    @unique
+  supervisorId  String
+  status        String    @default("supervising")
+  priority      Int?
+  note          String?
+  action        String?
+  actionReason  String?
+  actionAt      DateTime?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  supervisor    User      @relation(fields: [supervisorId], references: [id])
+
+  @@index([supervisorId])
+  @@index([status])
+}
+
+model Log {
+  id          String   @id @default(uuid())
+  userId      String?
+  username    String?
+  action      String
+  targetType  String
+  targetId    String?
+  targetName  String?
+  details     String?
+  oldValue    String?
+  newValue    String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([targetType])
+  @@index([targetId])
+  @@index([createdAt])
+}
+
+model SystemConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String?
+  type        String   @default("string")
+  name        String?
+  description String?
+  group       String?
+  sortOrder   Int      @default(0)
+  editable    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([group])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  deviceInfo String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
